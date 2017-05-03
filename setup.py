@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name='Spiderpig',
     version='1.0',
-    packages=['requests'],
+    packages=[''],
     url='https://github.com/KevWill/Spiderpig.git',
     license='',
     author='Kevin Willemsen',
