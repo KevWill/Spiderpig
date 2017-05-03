@@ -20,8 +20,13 @@ class Spiderpig():
             self.q.put(tweet)
 
     def get_links(self):
+        """
+        Main method to get links of input
+        :return: domains list, links list, failed list
+        """
         threads = []
-        for i in range(100):
+        num_threads = int(len(self.input) / 4) if (len(self.input) / 4) <= 100 else 100
+        for i in range(num_threads):
             t = threading.Thread(target=self._get_links)
             t.start()
             threads.append(t)
@@ -34,7 +39,11 @@ class Spiderpig():
     def _get_links(self, domain_only = False):
         while not self.q.empty():
             item = self.q.get()
-            links = self._linksFromTweet(item)
+            links = self._links_from_tweet(item)
+            links_not_ignored = [urlparse(link) for link in links if urlparse(link).netloc not in self.ignore_domains]
+            self.links_list.append([urlunparse(parsed_link) for parsed_link in links_not_ignored])
+            self.domains_list.append([urlunparse([parsed_url.scheme, parsed_url.netloc, '', '', '', ''])
+                                      for parsed_url in links_not_ignored])
             for link in links:
                 parsed_url = urlparse(link)
                 if parsed_url.netloc not in self.ignore_domains:
@@ -42,7 +51,7 @@ class Spiderpig():
                     unparsed = urlunparse([parsed_url.scheme, parsed_url.netloc, '', '', '', ''])
                     self.domains_list.append(unparsed)
 
-    def _linksFromTweet(self, tweet_text):
+    def _links_from_tweet(self, tweet_text):
         def get_redirect(url):
             try:
                 r = requests.head(url, timeout=8)
