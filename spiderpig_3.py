@@ -25,7 +25,7 @@ class Spiderpig():
         :return: domains list, links list, failed list
         """
         threads = []
-        num_threads = num_threads or (int(len(self.input) / 4) if (len(self.input) / 4) <= 100 else 100)
+        num_threads = num_threads or (int(len(self.input) / 4) if (len(self.input) / 4) <= 50 else 50)
         for i in range(num_threads):
             t = threading.Thread(target=self._get_links, args = (verbose,))
             t.start()
