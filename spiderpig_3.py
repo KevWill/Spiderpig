@@ -16,40 +16,60 @@ class Spiderpig():
         self.ignore_domains = []
         self.input = input
         self.q = Queue()
-        for tweet in self.input:
-            self.q.put(tweet)
+        for i, tweet in enumerate(self.input):
+            self.q.put((i, tweet))
 
-    def get_links(self):
+    def get_links(self, num_threads = None, verbose = False):
         """
         Main method to get links of input
         :return: domains list, links list, failed list
         """
         threads = []
-        num_threads = int(len(self.input) / 4) if (len(self.input) / 4) <= 100 else 100
+        num_threads = num_threads or (int(len(self.input) / 4) if (len(self.input) / 4) <= 100 else 100)
         for i in range(num_threads):
-            t = threading.Thread(target=self._get_links)
+            t = threading.Thread(target=self._get_links, args = (verbose,))
             t.start()
             threads.append(t)
 
         for t in threads:
             t.join()
 
-        return self.domains_list, self.links_list, self.failed_list
+        domains = [d[1] for d in sorted(self.domains_list)]
+        links = [d[1] for d in sorted(self.links_list)]
 
-    def _get_links(self, domain_only = False):
+        return {'domains': domains, 'links': links, 'failed': self.failed_list}
+
+    def _get_links(self, verbose = False):
         while not self.q.empty():
+            if verbose:
+                q_size = self.q.qsize()
+                if q_size < 10:
+                    update = True
+                elif q_size < 100 and q_size % 10 == 0:
+                    update = True
+                elif q_size % 100 == 0:
+                    update = True
+                else:
+                    update = False
+                if update:
+                    print('{} berichten over'.format(q_size))
             item = self.q.get()
-            links = self._links_from_tweet(item)
-            links_not_ignored = [urlparse(link) for link in links if urlparse(link).netloc not in self.ignore_domains]
-            self.links_list.append([urlunparse(parsed_link) for parsed_link in links_not_ignored])
-            self.domains_list.append([urlunparse([parsed_url.scheme, parsed_url.netloc, '', '', '', ''])
-                                      for parsed_url in links_not_ignored])
+            index = item[0]
+            tweet = item[1]
+            links = self._links_from_tweet(tweet)
+            links_not_ignored = []
             for link in links:
-                parsed_url = urlparse(link)
-                if parsed_url.netloc not in self.ignore_domains:
-                    self.links_list.append(link)
-                    unparsed = urlunparse([parsed_url.scheme, parsed_url.netloc, '', '', '', ''])
-                    self.domains_list.append(unparsed)
+                parsed_link = urlparse(link)
+                if parsed_link.netloc not in Spiderpig.ignore_domains:
+                    links_not_ignored.append(parsed_link)
+            tweet_links = []
+            tweet_domains = []
+            for link in links_not_ignored:
+                tweet_links.append(urlunparse(link))
+                unparsed = urlunparse([link.scheme, link.netloc, '', '', '', ''])
+                tweet_domains.append(unparsed)
+            self.links_list.append((index, tweet_links))
+            self.domains_list.append((index, tweet_domains))
 
     def _links_from_tweet(self, tweet_text):
         def get_redirect(url):
@@ -113,10 +133,12 @@ class Spiderpig():
             return url_without_args
         regex_url = re.compile('((http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?)')
         urls = re.findall(regex_url, tweet_text)
+        urls_to_return = []
         for url in urls:
             full_url = url[0]
             redirect = get_redirect(full_url)
             if redirect:
-                yield redirect
+                urls_to_return.append(redirect)
             else:
-                yield ''
+                urls_to_return.append('')
+        return urls_to_return
